@@ -11,7 +11,7 @@ import (
 )
 
 const (
-	version = "1.0.1"
+	version = "1.0.2"
 
 	helpText = `
 Create a Go source file that can be used to unzip a file or directory tree.
@@ -19,12 +19,19 @@ Create a Go source file that can be used to unzip a file or directory tree.
 Usage: zipgo [options] <path>
 
 Options:
+  -d, --data			Write only the zip data to the output file.
   -h, --help            Print this help text and exit
+  -l, --log 			Log the files as they are added to the zip archive.
   -o, --output <file>   Write output to <file> (default: unzip.go)
   -p, --package <name>  Specify Go package name (default: main)
   -v, --version         Print version and exit
 
 `
+	shortPrefixString = `
+package %s
+
+const zipdata = `
+
 	prefixString = `
 package %s
 
@@ -104,7 +111,10 @@ func extractFile(f *zip.File, path string) error {
 `
 )
 
-var log bool
+var (
+	data bool
+	log  bool
+)
 
 // Main function accepts a directory or file name from the command line argument,
 // and creates a zip-encoded buffer that can be written to a file as a Go constant
@@ -121,6 +131,9 @@ func main() {
 		arg := os.Args[index]
 
 		switch arg {
+		case "-d", "--data":
+			data = true
+
 		case "-p", "--package":
 			index++
 			if index >= len(os.Args) {
@@ -199,8 +212,16 @@ func main() {
 
 	defer f.Close()
 
-	// Write the header for the constant.
-	if n, err := f.WriteString(fmt.Sprintf(prefixString, pkg)); err != nil {
+	// Write the header for the constant. The header is different if we are writing
+	// out only the data part of the zip encoding, as opposed to the function that
+	// also handles the unzip operation.
+	header := prefixString
+
+	if data {
+		header = shortPrefixString
+	}
+
+	if n, err := f.WriteString(fmt.Sprintf(header, pkg)); err != nil {
 		fmt.Println(err)
 		os.Exit(1)
 	} else {
@@ -223,12 +244,15 @@ func main() {
 		size += n
 	}
 
-	// Write the function that unpacks the zip data back to the file system.
-	if n, err := f.WriteString(suffixString); err != nil {
-		fmt.Println(err)
-		os.Exit(1)
-	} else {
-		size += n
+	// Write the function that unpacks the zip data back to the file system, if we
+	// are not writing out only the data part of the zip encoding.
+	if !data {
+		if n, err := f.WriteString(suffixString); err != nil {
+			fmt.Println(err)
+			os.Exit(1)
+		} else {
+			size += n
+		}
 	}
 
 	// All done, close the file
