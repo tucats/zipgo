@@ -3,6 +3,7 @@ package main
 import (
 	"archive/zip"
 	"bytes"
+	"encoding/base64"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -276,42 +277,10 @@ func addFile(w *zip.Writer, path, prefix string) error {
 	return nil
 }
 
-// encode converts a byte slice to a Go string constant.
+// encode converts a byte slice to a Go string constant containing a base64 representation
+// of the data.
 func encode(data []byte) string {
-	var (
-		buf        bytes.Buffer
-		lineLength = 0
-		n          int
-	)
+	text := base64.StdEncoding.EncodeToString(data)
 
-	for _, b := range data {
-		switch b {
-		case '\n':
-			n, _ = buf.WriteString("\\n")
-		case '\r':
-			n, _ = buf.WriteString("\\r")
-		case '\t':
-			n, _ = buf.WriteString("\\t")
-		case '"':
-			n, _ = buf.WriteString("\\\"")
-		case '\\':
-			n, _ = buf.WriteString("\\\\")
-		default:
-			if b < 32 || b > 126 {
-				n, _ = fmt.Fprintf(&buf, "\\x%02x", b)
-			} else {
-				_ = buf.WriteByte(b)
-				n = 1
-			}
-		}
-
-		lineLength += n
-		if lineLength >= 80 {
-			buf.WriteByte('\n')
-
-			lineLength = 0
-		}
-	}
-
-	return "`" + buf.String() + "`"
+	return "`" + text + "`"
 }
