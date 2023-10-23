@@ -103,6 +103,8 @@ func extractFile(f *zip.File, path string) error {
 `
 )
 
+var log bool
+
 // Main function accepts a directory or file name from the command line argument,
 // and creates a zip-encoded buffer that can be written to a file as a Go constant
 // expression.
@@ -117,6 +119,9 @@ func main() {
 		arg := os.Args[index]
 
 		switch arg {
+		case "-l", "--log":
+			log = true
+
 		case "-h", "--help":
 			fmt.Print(helpText)
 			os.Exit(0)
@@ -241,6 +246,10 @@ func addFiles(w *zip.Writer, path, prefix string) error {
 
 // addDir adds the files in a directory to the zip archive.
 func addDir(w *zip.Writer, path, prefix string) error {
+	if log {
+		fmt.Println(path + "/")
+	}
+
 	// Open the directory.
 	dir, err := os.Open(path)
 	if err != nil {
@@ -279,11 +288,13 @@ func addFile(w *zip.Writer, path, prefix string) error {
 		return err
 	}
 
+	if log {
+		fmt.Println(path)
+	}
+
 	defer file.Close()
 
-	zipfile := filepath.Join(prefix, file.Name())
-
-	zf, err := w.Create(zipfile)
+	zf, err := w.Create(path)
 	if err != nil {
 		return err
 	}

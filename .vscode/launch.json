@@ -10,7 +10,7 @@
             "request": "launch",
             "mode": "auto",
             "program": "${workspaceFolder}",
-            "args": ["test.data", "-o", "test.go"]
+            "args": ["test.data", "-l", "-o", "test.go"]
         }
 
     ]
