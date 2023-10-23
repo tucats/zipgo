@@ -11,7 +11,7 @@ import (
 )
 
 const (
-	version = "1.0.0"
+	version = "1.0.1"
 
 	helpText = `
 Create a Go source file that can be used to unzip a file or directory tree.
@@ -21,11 +21,12 @@ Usage: zipgo [options] <path>
 Options:
   -h, --help            Print this help text and exit
   -o, --output <file>   Write output to <file> (default: unzip.go)
+  -p, --package <name>  Specify Go package name (default: main)
   -v, --version         Print version and exit
 
 `
 	prefixString = `
-package main
+package %s
 
 import (
 	"archive/zip"
@@ -112,6 +113,7 @@ func main() {
 	var (
 		path   string
 		output = "unzip.go"
+		pkg    = "main"
 		size   int
 	)
 
@@ -119,6 +121,15 @@ func main() {
 		arg := os.Args[index]
 
 		switch arg {
+		case "-p", "--package":
+			index++
+			if index >= len(os.Args) {
+				fmt.Println("Missing package name")
+				os.Exit(1)
+			}
+
+			pkg = os.Args[index]
+
 		case "-l", "--log":
 			log = true
 
@@ -189,7 +200,7 @@ func main() {
 	defer f.Close()
 
 	// Write the header for the constant.
-	if n, err := f.WriteString(prefixString); err != nil {
+	if n, err := f.WriteString(fmt.Sprintf(prefixString, pkg)); err != nil {
 		fmt.Println(err)
 		os.Exit(1)
 	} else {
