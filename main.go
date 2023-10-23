@@ -19,9 +19,10 @@ Create a Go source file that can be used to unzip a file or directory tree.
 Usage: zipgo [options] <path>
 
 Options:
-  -d, --data			Write only the zip data to the output file.
+  -d, --data            Write only the zip data constant to the source file.
   -h, --help            Print this help text and exit
-  -l, --log 			Log the files as they are added to the zip archive.
+  -l, --log             Log the files as they are added to the zip archive.
+  -x, --omit <files>	Comma-separated list of files names to omit from the zip archive.
   -o, --output <file>   Write output to <file> (default: unzip.go)
   -p, --package <name>  Specify Go package name (default: main)
   -v, --version         Print version and exit
@@ -114,6 +115,7 @@ func extractFile(f *zip.File, path string) error {
 var (
 	data bool
 	log  bool
+	omit = map[string]bool{}
 )
 
 // Main function accepts a directory or file name from the command line argument,
@@ -131,6 +133,18 @@ func main() {
 		arg := os.Args[index]
 
 		switch arg {
+		case "--omit", "-x":
+			index++
+			if index >= len(os.Args) {
+				fmt.Println("Missing file name")
+				os.Exit(1)
+			}
+
+			list := strings.Split(os.Args[index], ",")
+			for _, name := range list {
+				omit[name] = true
+			}
+
 		case "-d", "--data":
 			data = true
 
@@ -315,8 +329,18 @@ func addDir(w *zip.Writer, path, prefix string) error {
 	return nil
 }
 
-// addDir adds a single file to the zip archive.
+// addDir adds a single file to the zip archive. If the file is in the omit
+// list, it is skipped.
 func addFile(w *zip.Writer, path, prefix string) error {
+	// Skip files that are in the omit list.
+	if omit[filepath.Base(path)] {
+		if log {
+			fmt.Println(path, "(omitted)")
+		}
+
+		return nil
+	}
+
 	// Open the file.
 	file, err := os.Open(path)
 	if err != nil {
