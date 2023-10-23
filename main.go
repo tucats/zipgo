@@ -127,6 +127,7 @@ func main() {
 		output = "unzip.go"
 		pkg    = "main"
 		size   int
+		done   bool
 	)
 
 	for index := 1; index < len(os.Args); index++ {
@@ -162,11 +163,13 @@ func main() {
 
 		case "-h", "--help":
 			fmt.Print(helpText)
-			os.Exit(0)
+
+			done = true
 
 		case "-v", "--version":
 			fmt.Println("zipgo", version)
-			os.Exit(0)
+
+			done = true
 
 		case "-o", "--output":
 			index++
@@ -190,10 +193,22 @@ func main() {
 			output = arg
 
 		default:
+			if strings.HasPrefix(arg, "-") {
+				fmt.Println("Unknown option:", arg)
+				os.Exit(1)
+			}
+
 			path = arg
 		}
 	}
 
+	// IF one or more command line options mean we do not actually execute the
+	// archive function, exit now.
+	if done {
+		os.Exit(0)
+	}
+
+	// IF we never got a path, print the usage message and exit.
 	if path == "" {
 		fmt.Println("Usage: zipgo <path>")
 		os.Exit(1)
