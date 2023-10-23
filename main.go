@@ -10,7 +10,21 @@ import (
 	"strings"
 )
 
-const prefixString = `
+const (
+	version = "1.0.0"
+
+	helpText = `
+Create a Go source file that can be used to unzip a file or directory tree.
+
+Usage: zipgo [options] <path>
+
+Options:
+  -h, --help            Print this help text and exit
+  -o, --output <file>   Write output to <file> (default: unzip.go)
+  -v, --version         Print version and exit
+
+`
+	prefixString = `
 package main
 
 import (
@@ -24,7 +38,7 @@ import (
 
 const zipdata = `
 
-const suffixString = `
+	suffixString = `
 
 // Unzip extracts the zip data to the file system.
 func Unzip(path string) error {
@@ -87,6 +101,7 @@ func extractFile(f *zip.File, path string) error {
 }
 
 `
+)
 
 // Main function accepts a directory or file name from the command line argument,
 // and creates a zip-encoded buffer that can be written to a file as a Go constant
@@ -102,6 +117,14 @@ func main() {
 		arg := os.Args[index]
 
 		switch arg {
+		case "-h", "--help":
+			fmt.Print(helpText)
+			os.Exit(0)
+
+		case "-v", "--version":
+			fmt.Println("zipgo", version)
+			os.Exit(0)
+
 		case "-o", "--output":
 			index++
 			if index >= len(os.Args) {
