@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 )
 
 const prefixString = `
@@ -93,7 +94,7 @@ func extractFile(f *zip.File, path string) error {
 func main() {
 	var (
 		path   string
-		output = "zip.go"
+		output = "unzip.go"
 		size   int
 	)
 
@@ -282,5 +283,19 @@ func addFile(w *zip.Writer, path, prefix string) error {
 func encode(data []byte) string {
 	text := base64.StdEncoding.EncodeToString(data)
 
-	return "`" + text + "`"
+	b := strings.Builder{}
+
+	b.WriteRune('`')
+
+	for _, ch := range text {
+		if b.Len()%60 == 0 {
+			b.WriteString("\n")
+		}
+
+		b.WriteRune(ch)
+	}
+
+	b.WriteRune('`')
+
+	return b.String()
 }

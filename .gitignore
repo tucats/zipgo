@@ -11,7 +11,7 @@ zipgo
 
 # Byproducts of running the program
 test.go
-zip.go 
+unzip.go 
 
 # Test binary, built with `go test -c`
 *.test
