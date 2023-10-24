@@ -109,3 +109,98 @@ not an error to omit files that do not exist.
 
 The purpose of this is to allow the development build to generate the archive file
 but omit server-specific secrets that are stored in the lib directory.
+
+Here is an example of the generated Go file:
+
+```go
+package main
+
+import (
+	"archive/zip"
+	"bytes"
+	"encoding/base64"
+	"io"
+	"os"
+	"path/filepath"
+)
+
+const zipdata = `UEsDBBQACAAIAAAAAAAAAAAAAAAAAAAAAAAXAAAAdGVzdC5kYXRhL3N1YjE
+vc3ViMS50eHQKSa0oUUgsUSjJSFVIyywqLlEoLk1SyEktS83hMuQCBAAA//
+9QSwcIrKwkqCQAAAAeAAAAUEsDBBQACAAIAAAAAAAAAAAAAAAAAAAAAAAcA
+AAAdGVzdC5kYXRhL3N1YjEvc3ViMi9zdWIyLnR4dApJrShRSCxRKMlIVShO
+Tc7PS1EoLk1SyEktS83hMuICBAAA//9QSwcIbb466CUAAAAfAAAAUEsDBBQ
+ACAAIAAAAAAAAAAAAAAAAAAAAAAATAAAAdGVzdC5kYXRhL3Jvb3QxLnR4dA
+pJrShRSCxRKMlIVSjKzy9RyEktS83hMuQCBAAA//9QSwcI7yHnNh8AAAAZA
+AAAUEsDBBQACAAIAAAAAAAAAAAAAAAAAAAAAAATAAAAdGVzdC5kYXRhL3Jv
+b3QyLnR4dApJrShRSCxRKMlIVSjKzy9RyEktS83hMuICBAAA//9QSwcILHL
+KHR8AAAAZAAAAUEsBAhQAFAAIAAgAAAAAAKysJKgkAAAAHgAAABcAAAAAAA
+AAAAAAAAAAAAAAAHRlc3QuZGF0YS9zdWIxL3N1YjEudHh0UEsBAhQAFAAIA
+AgAAAAAAG2+OuglAAAAHwAAABwAAAAAAAAAAAAAAAAAaQAAAHRlc3QuZGF0
+YS9zdWIxL3N1YjIvc3ViMi50eHRQSwECFAAUAAgACAAAAAAA7yHnNh8AAAA
+ZAAAAEwAAAAAAAAAAAAAAAADYAAAAdGVzdC5kYXRhL3Jvb3QxLnR4dFBLAQ
+IUABQACAAIAAAAAAAscsodHwAAABkAAAATAAAAAAAAAAAAAAAAADgBAAB0Z
+XN0LmRhdGEvcm9vdDIudHh0UEsFBgAAAAAEAAQAEQEAAJgBAAAAAA==`
+
+
+
+// Unzip extracts the zip data to the file system.
+func Unzip(path string) error {
+	// Decode the zip data.
+	data, err := base64.StdEncoding.DecodeString(zipdata)
+	if err != nil {
+		return err
+	}
+
+	// Open the zip archive.
+	r, err := zip.NewReader(bytes.NewReader(data), int64(len(data)))
+	if err != nil {
+		return err
+	}
+
+	// Extract the files in the archive.
+	for _, f := range r.File {
+		if err := extractFile(f, path); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+// extractFile extracts a single file from the zip archive.
+func extractFile(f *zip.File, path string) error {
+	// Open the file in the archive.
+	rc, err := f.Open()
+	if err != nil {
+		return err
+	}
+
+	defer rc.Close()
+
+	// Create the file in the file system.
+	path = filepath.Join(path, f.Name)
+	if f.FileInfo().IsDir() {
+		if err := os.MkdirAll(path, 0755); err != nil {
+			return err
+		}
+	} else {
+		if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
+			return err
+		}
+
+		f, err := os.Create(path)
+		if err != nil {
+			return err
+		}
+		defer f.Close()
+
+		// Copy the file contents.
+		if _, err := io.Copy(f, rc); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+```
