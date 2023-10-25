@@ -188,9 +188,13 @@ func main() {
 			os.Exit(1)
 		}
 
-		fmt.Println("Wrote zip data to", output, "(", size, "bytes)")
+		if log {
+			fmt.Println("Wrote zip data to", output, "(", size, "bytes)")
+		}
 	} else {
-		fmt.Println("No zip data written, source unchanged")
+		if log {
+			fmt.Println("No zip data written, source unchanged")
+		}
 	}
 }
 
