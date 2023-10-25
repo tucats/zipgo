@@ -76,6 +76,13 @@ func addFile(w *zip.Writer, path, prefix string) error {
 		return err
 	}
 
+	// If we are building a digest value, capture that now.
+	if digest != "" {
+		if err := addFileToDigest(path, file); err != nil {
+			return err
+		}
+	}
+
 	if log {
 		fmt.Println(path)
 	}
