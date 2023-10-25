@@ -7,6 +7,7 @@ Usage: zipgo [options] <path>
 
 Options:
   -d, --data            Write only the zip data constant to the source file.
+  -m, --digest <file>   Use MD5 digest in named file to determine if source has changed.
   -h, --help            Print this help text and exit
   -l, --log             Log the files as they are added to the zip archive.
   -x, --omit <files>    Comma-separated list of files names to omit from the zip archive.
@@ -39,6 +40,19 @@ If `--data` is not on the command line, then the resulting source file contains 
 named Unzip in addition to the archive data. This function can be called by the Go program
 and is passed a location path in which to extract the archive. See the section later on
 using the resulting source program.
+
+### --digest
+
+When `--digest` followed by a filename is specified, `zipgo` will calculate an MD5 checksum
+of teh input file or directory tree, and compare it to the checksum stored in the named
+file (if it exists).
+
+If the file exists and the checkums match, the program does not generate a new source file.
+This is used when zipgo is part of an automated build to prevent it from regenerating
+each time the build is done when the source file or tree has not changed.
+
+If the file does not exist, or the checksums do not match, the output file is generated and
+the revised checksum is stored into the named file.
 
 ### --help
 
