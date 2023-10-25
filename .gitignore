@@ -12,6 +12,7 @@ zipgo
 # Byproducts of running the program
 test.go
 unzip.go 
+*.checksum
 
 # Test binary, built with `go test -c`
 *.test
