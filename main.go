@@ -3,7 +3,6 @@ package main
 import (
 	"archive/zip"
 	"bytes"
-	"encoding/base64"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -11,105 +10,7 @@ import (
 )
 
 const (
-	version = "1.0.2"
-
-	helpText = `
-Create a Go source file that can be used to unzip a file or directory tree.
-
-Usage: zipgo [options] <path>
-
-Options:
-  -d, --data            Write only the zip data constant to the source file.
-  -h, --help            Print this help text and exit
-  -l, --log             Log the files as they are added to the zip archive.
-  -x, --omit <files>	Comma-separated list of files names to omit from the zip archive.
-  -o, --output <file>   Write output to <file> (default: unzip.go)
-  -p, --package <name>  Specify Go package name (default: main)
-  -v, --version         Print version and exit
-
-`
-	shortPrefixString = `
-package %s
-
-const zipdata = `
-
-	prefixString = `
-package %s
-
-import (
-	"archive/zip"
-	"bytes"
-	"encoding/base64"
-	"io"
-	"os"
-	"path/filepath"
-)
-
-const zipdata = `
-
-	suffixString = `
-
-// Unzip extracts the zip data to the file system.
-func Unzip(path string) error {
-	// Decode the zip data.
-	data, err := base64.StdEncoding.DecodeString(zipdata)
-	if err != nil {
-		return err
-	}
-
-	// Open the zip archive.
-	r, err := zip.NewReader(bytes.NewReader(data), int64(len(data)))
-	if err != nil {
-		return err
-	}
-
-	// Extract the files in the archive.
-	for _, f := range r.File {
-		if err := extractFile(f, path); err != nil {
-			return err
-		}
-	}
-
-	return nil
-}
-
-// extractFile extracts a single file from the zip archive.
-func extractFile(f *zip.File, path string) error {
-	// Open the file in the archive.
-	rc, err := f.Open()
-	if err != nil {
-		return err
-	}
-
-	defer rc.Close()
-
-	// Create the file in the file system.
-	path = filepath.Join(path, f.Name)
-	if f.FileInfo().IsDir() {
-		if err := os.MkdirAll(path, 0755); err != nil {
-			return err
-		}
-	} else {
-		if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
-			return err
-		}
-
-		f, err := os.Create(path)
-		if err != nil {
-			return err
-		}
-		defer f.Close()
-
-		// Copy the file contents.
-		if _, err := io.Copy(f, rc); err != nil {
-			return err
-		}
-	}
-
-	return nil
-}
-
-`
+	version = "1.1-3"
 )
 
 var (
@@ -126,8 +27,9 @@ func main() {
 		path   string
 		output = "unzip.go"
 		pkg    = "main"
-		size   int
 		done   bool
+		size   int
+		err    error
 	)
 
 	for index := 1; index < len(os.Args); index++ {
@@ -202,13 +104,13 @@ func main() {
 		}
 	}
 
-	// IF one or more command line options mean we do not actually execute the
+	// If one or more command line options mean we do not actually execute the
 	// archive function, exit now.
 	if done {
 		os.Exit(0)
 	}
 
-	// IF we never got a path, print the usage message and exit.
+	// If we never got a path, print the usage message and exit.
 	if path == "" {
 		fmt.Println("Usage: zipgo <path>")
 		os.Exit(1)
@@ -232,60 +134,8 @@ func main() {
 		os.Exit(1)
 	}
 
-	// Open the output text file and write the header from the constant.
-	f, err := os.Create(output)
-	if err != nil {
-		fmt.Println(err)
-		os.Exit(1)
-	}
-
-	defer f.Close()
-
-	// Write the header for the constant. The header is different if we are writing
-	// out only the data part of the zip encoding, as opposed to the function that
-	// also handles the unzip operation.
-	header := prefixString
-
-	if data {
-		header = shortPrefixString
-	}
-
-	if n, err := f.WriteString(fmt.Sprintf(header, pkg)); err != nil {
-		fmt.Println(err)
-		os.Exit(1)
-	} else {
-		size += n
-	}
-
-	// Encode the zip data as a Go string constant.
-	if encodedSize, err := f.WriteString(encode(buf.Bytes())); err != nil {
-		fmt.Println(err)
-		os.Exit(1)
-	} else {
-		size += encodedSize
-	}
-
-	// Close out the string constant.
-	if n, err := f.WriteString("\n\n"); err != nil {
-		fmt.Println(err)
-		os.Exit(1)
-	} else {
-		size += n
-	}
-
-	// Write the function that unpacks the zip data back to the file system, if we
-	// are not writing out only the data part of the zip encoding.
-	if !data {
-		if n, err := f.WriteString(suffixString); err != nil {
-			fmt.Println(err)
-			os.Exit(1)
-		} else {
-			size += n
-		}
-	}
-
-	// All done, close the file
-	if err := f.Close(); err != nil {
+	// Write the buffer to the source file.
+	if size, err = writeSourceFile(output, pkg, data, *buf); err != nil {
 		fmt.Println(err)
 		os.Exit(1)
 	}
@@ -293,117 +143,61 @@ func main() {
 	fmt.Println("Wrote zip data to", output, "(", size, "bytes)")
 }
 
-// addFiles walks the file tree rooted at path and adds each file or directory
-// to the zip archive.
-func addFiles(w *zip.Writer, path, prefix string) error {
-	info, err := os.Stat(path)
+// Write the archive data to a Go source file.
+func writeSourceFile(output, pkg string, data bool, buf bytes.Buffer) (int, error) {
+	var size int
+
+	// Open the output text file and write the header from the constant.
+	f, err := os.Create(output)
 	if err != nil {
-		return err
+		return 0, err
 	}
 
-	if info.IsDir() {
-		return addDir(w, path, prefix)
+	defer f.Close()
+
+	// The prolog to the source file is different if we are writing only the
+	// data part of the zip encoding, as opposed to the function that also
+	// handles the unzip operation.
+	header := fullPrologString
+	if data {
+		header = shortPrologString
 	}
 
-	return addFile(w, path, prefix)
-}
-
-// addDir adds the files in a directory to the zip archive.
-func addDir(w *zip.Writer, path, prefix string) error {
-	if log {
-		fmt.Println(path + "/")
+	// Write the appropriate header to the file, injecting the selected package name.
+	if n, err := f.WriteString(fmt.Sprintf(header, pkg)); err != nil {
+		return 0, err
+	} else {
+		size += n
 	}
 
-	// Open the directory.
-	dir, err := os.Open(path)
-	if err != nil {
-		return err
+	// Encode the zip data as a Go string constant.
+	if encodedSize, err := f.WriteString(encode(buf.Bytes())); err != nil {
+		return 0, err
+	} else {
+		size += encodedSize
 	}
 
-	defer dir.Close()
-
-	// Get list of files in the directory.
-	files, err := dir.Readdir(-1)
-	if err != nil {
-		return err
+	// Close out the string constant.
+	if n, err := f.WriteString("\n\n"); err != nil {
+		return 0, err
+	} else {
+		size += n
 	}
 
-	// Recursively add files in the subdirectories.
-	for _, file := range files {
-		if file.IsDir() {
-			if err := addDir(w, filepath.Join(path, file.Name()), filepath.Join(prefix, file.Name())); err != nil {
-				return err
-			}
+	// Write the function that unpacks the zip data back to the file system, if we
+	// are not writing out only the data part of the zip encoding.
+	if !data {
+		if n, err := f.WriteString(epilogString); err != nil {
+			return 0, err
 		} else {
-			if err := addFile(w, filepath.Join(path, file.Name()), prefix); err != nil {
-				return err
-			}
+			size += n
 		}
 	}
 
-	return nil
-}
-
-// addDir adds a single file to the zip archive. If the file is in the omit
-// list, it is skipped.
-func addFile(w *zip.Writer, path, prefix string) error {
-	// Skip files that are in the omit list.
-	if omit[filepath.Base(path)] {
-		if log {
-			fmt.Println(path, "(omitted)")
-		}
-
-		return nil
+	// All done, close the file
+	if err := f.Close(); err != nil {
+		return 0, err
 	}
 
-	// Open the file.
-	file, err := os.Open(path)
-	if err != nil {
-		return err
-	}
-
-	if log {
-		fmt.Println(path)
-	}
-
-	defer file.Close()
-
-	zf, err := w.Create(path)
-	if err != nil {
-		return err
-	}
-
-	// Get file contents and write to the zip archive
-	data, err := os.ReadFile(path)
-	if err != nil {
-		return err
-	}
-
-	if _, err := zf.Write(data); err != nil {
-		return err
-	}
-
-	return nil
-}
-
-// encode converts a byte slice to a Go string constant containing a base64 representation
-// of the data.
-func encode(data []byte) string {
-	text := base64.StdEncoding.EncodeToString(data)
-
-	b := strings.Builder{}
-
-	b.WriteRune('`')
-
-	for _, ch := range text {
-		if b.Len()%60 == 0 {
-			b.WriteString("\n")
-		}
-
-		b.WriteRune(ch)
-	}
-
-	b.WriteRune('`')
-
-	return b.String()
+	return size, nil
 }
